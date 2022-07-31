@@ -1,0 +1,60 @@
+parameters:
+- name: dotnetVersion
+  type: string
+  default: '6.0.x'
+- name: buildConfiguration
+  type: string
+  default: Release
+- name: projectName
+  type: string
+- name: applicationId
+  type: string
+- name: keystoreCert
+  type: object
+  default:
+    file: ''
+    filePassword: ''
+    alias: ''
+    aliasPassword: ''
+
+jobs:
+  - job:
+    steps:
+    - task: UseDotNet@2
+      displayName: Install dotnet version ${{ parameters.dotnetVersion }}
+      inputs:
+        packageType: 'sdk'
+        version: ${{ parameters.dotnetVersion }}
+
+    - script: dotnet --version
+      displayName: dotnet version
+
+    - script: |
+        dotnet workload install android --ignore-failed-sources
+        dotnet workload install maui --ignore-failed-sources
+      displayName: dotnet install workloads
+
+    - script: dotnet restore $(Build.SourcesDirectory)/${{ parameters.projectName }}.csproj
+      displayName: dotnet restore
+            
+    - script: dotnet build $(Build.SourcesDirectory)/${{ parameters.projectName }}.csproj -c ${{ parameters.buildConfiguration }} -f net6.0-android --no-restore
+      displayName: dotnet build
+
+    - task: DownloadSecureFile@1
+      displayName: Download keystore from secure files
+      name: keyStore
+      inputs:
+        secureFile: ${{ parameters.keystoreCert.file }}
+
+    - script: |
+        jarsigner -keystore $(keyStore.secureFilePath) -storepass ${{ parameters.keystoreCert.filePassword }} -keypass ${{ parameters.keystoreCert.aliasPassword }} \
+          -sigalg SHA256withRSA -digestalg SHA-256 \
+          -signedjar $(Build.SourcesDirectory)/bin/${{ parameters.buildConfiguration }}/net6.0-android/app-signed.aab \
+          $(Build.SourcesDirectory)/bin/${{ parameters.buildConfiguration }}/net6.0-android/${{ parameters.applicationId }}.aab ${{ parameters.keystoreCert.alias }}
+      displayName: Sign aab
+
+    - task: PublishBuildArtifacts@1
+      displayName: Publish release
+      inputs:
+        pathToPublish: $(Build.SourcesDirectory)/bin/${{ parameters.buildConfiguration }}/net6.0-android/app-signed.aab
+        artifactName: drop

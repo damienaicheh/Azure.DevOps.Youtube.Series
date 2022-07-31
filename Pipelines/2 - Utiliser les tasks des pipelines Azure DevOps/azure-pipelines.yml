@@ -1,0 +1,25 @@
+trigger: none
+
+pool:
+  vmImage: macos-latest
+
+steps:
+- task: UseDotNet@2
+  displayName: Install dotnet version
+  inputs:
+    packageType: 'sdk'
+    version: '6.0.x'
+
+- script: dotnet --version
+  displayName: dotnet version
+
+- script: |
+    dotnet workload install android --ignore-failed-sources
+    dotnet workload install maui --ignore-failed-sources
+  displayName: dotnet install workloads
+
+- script: dotnet restore $(Build.SourcesDirectory)/Demo.Maui.DevOps.csproj
+  displayName: dotnet restore
+        
+- script: dotnet build $(Build.SourcesDirectory)/Demo.Maui.DevOps.csproj -c Release -f net6.0-android --no-restore
+  displayName: dotnet build

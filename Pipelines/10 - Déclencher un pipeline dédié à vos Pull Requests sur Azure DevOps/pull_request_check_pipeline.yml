@@ -1,0 +1,21 @@
+trigger: none
+
+pool:
+  vmImage: macos-latest
+
+variables:
+- group: sandbox-secrets
+
+stages:
+- stage: 
+  displayName: 'Build stage'
+  jobs:
+    - template: ./templates/jobs/job-dotnet-build-sign-aab.yml
+      parameters:
+        projectName: Demo.Maui.DevOps
+        applicationId: com.companyname.demo.maui.devops
+        keystoreCert:
+          file: 'sandbox_keystore.jks'
+          filePassword: $(keystore.password)
+          alias: $(key.alias)
+          aliasPassword: $(key.password)

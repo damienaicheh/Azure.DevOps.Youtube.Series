@@ -1,0 +1,38 @@
+parameters:
+- name: environment
+  type: string
+- name: appSlug
+  type: string
+- name: app
+  type: string
+- name: destinationGroupIds
+  type: string
+- name: serverEndpoint
+  type: string
+  default: VSAC
+
+jobs:
+  - deployment: 
+    displayName: ${{ parameters.environment }} deploy
+    environment: approvals-${{ parameters.environment }}
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: DownloadBuildArtifacts@0
+            displayName: 'Download artifacts'
+            inputs:
+                buildType: 'current'
+                downloadType: 'specific'
+                downloadPath: 'release'
+
+          - task: AppCenterDistribute@3
+            displayName: Distribute the application
+            inputs:
+              serverEndpoint: ${{ parameters.serverEndpoint }}
+              appSlug: ${{ parameters.appSlug }}
+              app: release/${{ parameters.app }}
+              releaseNotesSelection: input 
+              releaseNotesInput: "New version"
+              destinationType: groups
+              destinationGroupIds: ${{ parameters.destinationGroupIds }}

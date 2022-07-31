@@ -1,0 +1,62 @@
+trigger: none
+
+pool:
+  vmImage: macos-latest
+
+variables:
+- group: sandbox-secrets
+- name: buildConfiguration
+  value: Release
+- name: dotnetVersion
+  value: '6.0.x'
+
+steps:
+- task: UseDotNet@2
+  displayName: Install dotnet version ${{ variables.dotnetVersion }}
+  inputs:
+    packageType: 'sdk'
+    version: $(dotnetVersion)
+
+- script: dotnet --version
+  displayName: dotnet version
+
+- script: |
+    dotnet workload install android --ignore-failed-sources
+    dotnet workload install maui --ignore-failed-sources
+  displayName: dotnet install workloads
+
+- script: dotnet restore $(Build.SourcesDirectory)/Demo.Maui.DevOps.csproj
+  displayName: dotnet restore
+        
+- script: dotnet build $(Build.SourcesDirectory)/Demo.Maui.DevOps.csproj -c $(buildConfiguration) -f net6.0-android --no-restore
+  displayName: dotnet build
+
+- task: DownloadSecureFile@1
+  displayName: Download keystore from secure files
+  name: keyStore
+  inputs:
+    secureFile: sandbox_keystore.jks
+
+- script: |
+    jarsigner -keystore $(keyStore.secureFilePath) -storepass $(keystore.password) -keypass $(key.password) \
+              -sigalg SHA256withRSA -digestalg SHA-256 \
+              -signedjar $(Build.SourcesDirectory)/bin/$(buildConfiguration)/net6.0-android/app-signed.aab \
+               $(Build.SourcesDirectory)/bin/$(buildConfiguration)/net6.0-android/com.companyname.demo.maui.devops.aab $(key.alias)
+  displayName: Sign aab
+
+- task: PublishBuildArtifacts@1
+  displayName: Publish release
+  inputs:
+    pathToPublish: $(Build.SourcesDirectory)/bin/$(buildConfiguration)/net6.0-android/app-signed.aab
+    artifactName: drop
+
+- task: AppCenterDistribute@3
+  displayName: Distribute the application
+  inputs:
+    serverEndpoint: VSAC
+    appSlug: Azure-DevOps-Demo/Demo-MAUI-Android
+    app: $(Build.SourcesDirectory)/bin/$(buildConfiguration)/net6.0-android/app-signed.aab
+    releaseNotesSelection: input 
+    releaseNotesInput: "New version"
+    destinationType: groups
+    destinationGroupIds: 1fe21f1a-371e-4f98-b5c7-8deff1c97614
